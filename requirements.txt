@@ -3,3 +3,4 @@ reportlab
 Pillow
 XlsxWriter
 pandas
+bcrypt
