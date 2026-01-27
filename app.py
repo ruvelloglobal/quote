@@ -61,12 +61,7 @@ def increment_invoice_number(current_val):
 
 def num_to_words(amount):
     """Simple converter for Amount in Words (USD)"""
-    # Note: For production, libraries like 'num2words' are better, 
-    # but this avoids dependency errors in standard Streamlit clouds.
     return f"USD {amount:,.2f} (IN FIGURES)" 
-    # If you have num2words installed, uncomment below:
-    # from num2words import num2words
-    # return "USD " + num2words(amount, lang='en').upper() + " ONLY"
 
 # ==========================================
 # 🚀 MAIN APP
@@ -150,6 +145,10 @@ def generate_proforma_pdf(logo, sig, inv_no, inv_dt, valid_days,
     style_val_bold = ParagraphStyle('V', fontName='Helvetica-Bold', fontSize=9, textColor=BLACK, leading=11)
     style_val_norm = ParagraphStyle('N', fontName='Helvetica', fontSize=9, textColor=BLACK, leading=11)
     
+    # Signature Styles (NEW)
+    style_sig_header = ParagraphStyle('SH', fontName='Helvetica-Bold', fontSize=10, textColor=BLACK, alignment=TA_CENTER)
+    style_sig_footer = ParagraphStyle('SF', fontName='Helvetica', fontSize=9, textColor=BLACK, alignment=TA_CENTER)
+
     # 1. HEADER (CENTERED)
     if logo:
         logo_obj = logo if isinstance(logo, str) else (logo.seek(0) or logo)
@@ -262,8 +261,8 @@ def generate_proforma_pdf(logo, sig, inv_no, inv_dt, valid_days,
     elements.append(Spacer(1, 30))
 
     # 4. FOOTER GRID (Terms vs Bank vs Sig)
-    # Using a 2-column layout. Left: Terms & Bank. Right: Signature.
     
+    # --- Left Side: Terms & Bank ---
     left_content = [
         [Paragraph("TERMS & CONDITIONS", style_lbl_gold)],
         [Paragraph(pay_terms, style_val_norm)],
@@ -278,31 +277,50 @@ def generate_proforma_pdf(logo, sig, inv_no, inv_dt, valid_days,
         """, style_val_norm)]
     ]
     
-    # Signature Block (Perfectly Aligned Right)
-    sig_content = []
-    sig_content.append(Paragraph(f"For {COMPANY_INFO['NAME']}", style_val_bold))
-    sig_content.append(Spacer(1, 35)) # Space for manual signature
+    # --- Right Side: The Perfect Signature Block ---
+    # We construct a mini-table to hold the header, image, and footer perfectly centered.
     
+    sig_block_data = []
+    
+    # 1. "For RUVELLO GLOBAL LLP" (Bold, Top)
+    sig_block_data.append([Paragraph(f"For {COMPANY_INFO['NAME']}", style_sig_header)])
+    
+    # 2. The Signature Image (Centered)
     if sig:
         sig_obj = sig if isinstance(sig, str) else (sig.seek(0) or sig)
-        img_sig = RLImage(sig_obj, width=1.5*inch, height=0.8*inch, kind='proportional')
-        img_sig.hAlign = 'RIGHT'
-        sig_content.append(img_sig)
+        # Using a slightly taller height to accommodate stamps
+        img_sig = RLImage(sig_obj, width=1.6*inch, height=0.9*inch, kind='proportional')
+        img_sig.hAlign = 'CENTER' 
+        sig_block_data.append([img_sig])
+    else:
+        sig_block_data.append([Spacer(1, 50)])
         
-    sig_content.append(Paragraph("Authorized Signatory", style_val_norm))
+    # 3. "Authorized Signatory" (Bottom)
+    sig_block_data.append([Paragraph("Authorized Signatory", style_sig_footer)])
     
+    # Create the Block Table
+    t_sig_block = Table(sig_block_data, colWidths=[180])
+    t_sig_block.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),   # Center text/image inside the block
+        ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),  # Align block to bottom
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+    ]))
+
+    # Place the Block into the Right Column
     right_content = [
-        [Spacer(1, 20)], # Push signature down slightly
-        [Table([[x] for x in sig_content], style=[('ALIGN', (0,0), (-1,-1), 'RIGHT')])]
+        [Spacer(1, 20)], # Push down slightly to align with bank details
+        [t_sig_block]
     ]
 
+    # Main Footer Layout
     t_footer = Table([
         [Table(left_content, colWidths=[300]), Table(right_content, colWidths=[200])]
     ], colWidths=[315, 200])
     
     t_footer.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('ALIGN', (1,0), (1,0), 'RIGHT'),
+        ('ALIGN', (1,0), (1,0), 'RIGHT'), # Align the right table to the right edge
     ]))
     elements.append(t_footer)
     
